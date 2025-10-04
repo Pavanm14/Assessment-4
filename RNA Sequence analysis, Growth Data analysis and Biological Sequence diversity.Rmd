@@ -45,8 +45,6 @@ top10_genes <- gene[order(gene$mean, decreasing = TRUE), ][1:10, ]
 top10_summary <- data.frame(  Gene = rownames(top10_genes),  MeanExpression = round(top10_genes$mean, 1))
 # Display the top 10 genes
 print(top10_summary, row.names = FALSE)
- 
-
 ```
 Objective: Identify the 10 most highly expressed genes. The order function sorts genes by mean expression in descending order, and we extract the first 10 rows.
 Outcome: The top 10 genes are predominantly mitochondrial genes (MT-CO1, MT-ND4, MT-CO3) with mean expression ranging from ~529,000 to ~232,000, indicating high metabolic activity.
