@@ -1,1 +1,505 @@
+---
+title: "RNA sequences analysis, growth data analysis and biological sequence diversity"
+author: "pavan manda"
+date: "2025-10-01"
+output: html_document
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("R.utils")
+library(R.utils)
+install.packages("seqinr")
+library(seqinr)
+library(ggplot2)
+```
+
+```{r}
+# File URLs
+url_gene   <- "https://raw.githubusercontent.com/ghazkha/Assessment4/main/gene_expression.tsv"
+url_growth <- "https://raw.githubusercontent.com/ghazkha/Assessment4/main/growth_data.csv"
+```
+
+```{r}
+gene <- read.table(url_gene, header = TRUE, sep = "\t")
+rownames(gene) <- gene[,1]
+gene <- gene[,-1]
+head(gene, 6)
+```
+Objective: Import gene expression data into R for analysis. The read.table function reads the TSV file, specifying headers in the first row and gene identifiers in the first column. This creates a data frame where each row represents a gene and each column represents a sample.
+Outcome: A well-structured data frame ready for analysis with gene names as row identifiers.
+```{r}
+gene$mean <- rowMeans(gene)
+head(gene, 6)
+```
+Objective: Calculate the average expression level of each gene across all samples. The rowMeans function computes the mean for each row (gene), adding this as a new column called "mean" to the data frame.
+Outcome: An updated data frame with an additional column representing mean expression for each gene.
+ 
+```{r}
+# Sort by mean expression (descending) and get top 10
+top10_genes <- gene[order(gene$mean, decreasing = TRUE), ][1:10, ]
+# Create a clean summary table with gene names and mean expression
+top10_summary <- data.frame(  Gene = rownames(top10_genes),  MeanExpression = round(top10_genes$mean, 1))
+# Display the top 10 genes
+print(top10_summary, row.names = FALSE)
+ 
+
+```
+Objective: Identify the 10 most highly expressed genes. The order function sorts genes by mean expression in descending order, and we extract the first 10 rows.
+Outcome: The top 10 genes are predominantly mitochondrial genes (MT-CO1, MT-ND4, MT-CO3) with mean expression ranging from ~529,000 to ~232,000, indicating high metabolic activity.
+```{r}
+# Count genes with mean expression less than 10
+count_low <- sum(gene$mean < 10)
+# Display the count
+count_low
+```
+Objective: Determine how many genes have very low expression levels. The logical condition gene$mean < 10 creates a TRUE/FALSE vector, and sum counts the TRUE values.
+Outcome: 35,988 genes have mean expression below 10, representing lowly expressed or silent genes in these samples.
+ 
+```{r}
+# Create histogram of mean expression values
+hist(gene$mean,
+     main = "Distribution of Mean Gene Expression",
+     xlab = "Mean Expression", 
+     ylab = "Frequency", 
+     col = "red",  
+     border = "black",   
+     breaks = 30)
+```
+Objective: Visualize the distribution of mean expression values across all genes. The histogram shows frequency of genes at different expression levels.
+Outcome: The distribution is right-skewed with most genes having low expression and few genes showing very high expression, typical of gene expression data.
+ 
+```{r}
+# Read the growth data CSV file
+growth <- read.csv(url_growth)
+# Display column names
+column_names <- colnames(growth)
+column_names
+```
+Objective: Import tree circumference data and identify variables in the dataset.
+Outcome: The dataset contains 6 columns: Site, TreeID, Circumf_2005_cm, Circumf_2010_cm, Circumf_2015_cm, Circumf_2020_cm, tracking tree growth over 15 years at two sites.
+ 
+```{r}
+# Mean at start (2005) by site
+mean_start <- aggregate(Circumf_2005_cm ~ Site, data = growth, FUN = mean)
+# SD at start (2005) by site
+sd_start <- aggregate(Circumf_2005_cm ~ Site, data = growth, FUN = sd)
+# Mean at end (2020) by site
+mean_end <- aggregate(Circumf_2020_cm ~ Site, data = growth, FUN = mean)
+# SD at end (2020) by site
+sd_end <- aggregate(Circumf_2020_cm ~ Site, data = growth, FUN = sd)
+# Show results
+mean_start
+sd_start
+mean_end
+sd_end
+```
+Objective: Calculate mean and standard deviation of tree circumference at the beginning (2005) and end (2020) of the study period for both sites using the aggregate function to group data by site.
+Outcome:2005 (Start): Northeast mean = 5.29 cm (SD = 0.91), Southwest mean = 4.86 cm (SD = 1.15)
+2020 (End): Northeast mean = 54.23 cm (SD = 25.23), Southwest mean = 45.60 cm (SD = 17.87)
+Trees at both sites showed substantial growth over 15 years. The northeast site had slightly larger initial circumference and showed greater final size with higher variability (SD = 25.23 cm) compared to southwest (SD = 17.87 cm), indicating more heterogeneous growth patterns at the northeast site.
+```{r}
+# Simple boxplots for start and end by site
+ par(mfrow = c(1,2)) 
+# Boxplot for START (2005) 
+boxplot(Circumf_2005_cm ~ Site,  
+        data = growth,   
+        main = "Start (2010)",  
+        ylab = "Circumference (cm)",    
+        col = c("red", "blue")) 
+# Boxplot for END (2020)
+boxplot(Circumf_2020_cm ~ Site,  
+        data = growth,       
+        main = "End (2020)",    
+        ylab = "Circumference (cm)",   
+        col = c("red", "blue"))
+```
+Objective: Visualize the distribution of tree circumference at both sites for 2010 and 2020 to compare growth patterns.
+Outcome: Boxplots show substantial growth at both sites over 10 years, with northeast site showing greater median growth and more variability.
+```{r}
+# Calculate growth (2020 - 2010)
+growth$Growth_10yr <- growth$Circumf_2020_cm - growth$Circumf_2010_cm
+# Mean growth by site
+mean_growth <- aggregate(Growth_10yr ~ Site, data = growth, FUN = mean)
+# Show results
+mean_growth
+```
+Objective: Determine the average growth of trees over the 10-year period (2010-2020) at each site.
+Outcome: Northeast site: 42.94 cm mean growth; Southwest site: 35.49 cm mean growth. Northeast shows 7.45 cm more growth on average.
+ 
+```{r}
+# First, check what Site names actually exist 
+cat("Unique site names:\n")
+print(unique(growth$Site))
+cat("\n")
+# Get growth for each site (adjust names if needed)
+growth_control <- growth$Growth_10yr[growth$Site == "northeast"]
+growth_treatment <- growth$Growth_10yr[growth$Site == "southwest"]
+# Check sample sizes
+cat("Control group size:", length(growth_control), "\n")
+cat("Treatment group size:", length(growth_treatment), "\n\n")
+# Run t-test
+t_test_result <- t.test(growth_control, growth_treatment)
+# Show results
+t_test_result
+# Show just p-value
+cat("\nP-value:", t_test_result$p.value, "\n")
+#Interpretation
+if(t_test_result$p.value < 0.05) { 
+  cat("\nConclusion: There is a statistically significant difference in growth between sites (p < 0.05).")} else 
+    {  cat("\nConclusion: There is no statistically significant difference in growth between sites (p >= 0.05).")}
+```
+Objective: Test whether the difference in 10-year growth between sites is statistically significant using Welch's t-test.
+Outcome: t = 1.89, p-value = 0.062. The p-value is above 0.05, indicating no statistically significant difference in growth between sites at the 5% significance level, though the result is marginally significant (p < 0.10).
+```{r}
+library(R.utils)
+library("seqinr")
+# URL for E. coli CDS data
+url_ecoli <- "http://ftp.ensemblgenomes.org/pub/bacteria/release-53/fasta/bacteria_0_collection/escherichia_coli_str_k_12_substr_mg1655_gca_000005845/cds/Escherichia_coli_str_k_12_substr_mg1655_gca_000005845.ASM584v2.cds.all.fa.gz"
+# URL for Deinococcus radiodurans R1 CDS data
+url_deinococcus <- "http://ftp.ensemblgenomes.org/pub/bacteria/release-53/fasta/bacteria_0_collection/deinococcus_radiodurans_r1_gca_000008565/cds/Deinococcus_radiodurans_r1_gca_000008565.ASM856v1.cds.all.fa.gz"
+
+# Download E. coli CDS
+download.file(url_ecoli, destfile = "ecoli_cds.fa.gz")
+gunzip("ecoli_cds.fa.gz", overwrite = TRUE)
+# Download Deinococcus radiodurans CDS
+download.file(url_deinococcus, destfile = "deinococcus_cds.fa.gz")
+gunzip("deinococcus_cds.fa.gz", overwrite = TRUE)
+# Read the sequences
+ecoli_seqs <- seqinr::read.fasta("ecoli_cds.fa")
+deinococcus_seqs <- seqinr::read.fasta("deinococcus_cds.fa")
+# Count coding sequences
+num_cds_ecoli <- length(ecoli_seqs)
+num_cds_deinococcus <- length(deinococcus_seqs)
+# Create table
+cds_count_table <- data.frame(  Organism = c("E. coli", "D. radiodurans"),  
+Number_of_CDS = c(num_cds_ecoli, num_cds_deinococcus)
+)
+print("Number of Coding Sequences")
+print(cds_count_table)
+```
+Objective: Download coding DNA sequences (CDS) for E. coli and D. radiodurans from Ensembl database and count the number of genes.
+Outcome:
+E. coli: 4,239 coding sequences
+D. radiodurans: 3,101 coding sequences
+E. coli has 1,138 more genes (27% more), suggesting a larger and more complex genome.
+ 
+```{r}
+# Calculate total coding DNA
+total_ecoli <- sum(sapply(ecoli_seqs, length))
+total_deinococcus <- sum(sapply(deinococcus_seqs, length))
+# Create table
+total_cds_table <- data.frame(  Organism = c("E. coli", "D. radiodurans"),  Total_Coding_DNA_bp = c(total_ecoli, total_deinococcus)
+)
+print("Total Coding DNA")
+print(total_cds_table)
+```
+Objective: Calculate the total amount of coding DNA (in base pairs) in both organisms.
+Outcome:
+E. coli: 3,978,528 bp (~4.0 Mb)
+D. radiodurans: 2,879,559 bp (~2.9 Mb)
+E. coli has 1.1 Mb more coding DNA (38% more), consistent with having more genes.
+ 
+```{r}
+install.packages("ggplot2")
+library(ggplot2)
+# Calculate lengths
+ecoli_lengths <- sapply(ecoli_seqs, length)
+deinococcus_lengths <- sapply(deinococcus_seqs, length)
+
+
+# Calculate statistics
+mean_ecoli <- mean(ecoli_lengths)
+median_ecoli <- median(ecoli_lengths)
+mean_deinococcus <- mean(deinococcus_lengths)
+median_deinococcus <- median(deinococcus_lengths)
+
+
+# Create summary table
+length_stats <- data.frame(
+  Organism = c("E. coli", "D. radiodurans"),
+  Mean_Length = c(mean_ecoli, mean_deinococcus),
+  Median_Length = c(median_ecoli, median_deinococcus)
+)
+
+
+print("Question 3: Coding Sequence Length Statistics")
+print(length_stats)
+
+
+# Prepare data for boxplot
+length_data <- data.frame(
+  Length = c(ecoli_lengths, deinococcus_lengths),
+  Organism = c(rep("E. coli", length(ecoli_lengths)),
+               rep("D. radiodurans", length(deinococcus_lengths)))
+)
+
+
+# Create boxplot
+ggplot(length_data, aes(x = Organism, y = Length, fill = Organism)) +
+  geom_boxplot() +
+  labs(title = "Coding Sequence Length Distribution",
+       x = "Organism",
+       y = "Sequence Length (bp)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("lightblue", "lightcoral"))
+```
+Objective: Analyze the distribution of coding sequence lengths in both organisms using mean, median, and boxplots.
+Outcome:
+E. coli: Mean = 938.6 bp, Median = 831 bp
+D. radiodurans: Mean = 928.6 bp, Median = 789 bp
+Both organisms have similar average gene lengths, with E. coli genes slightly longer. The boxplot shows similar distributions with outliers representing unusually large genes.
+ 
+```{r}
+# Function to calculate nucleotide frequency
+calc_nucleotide_freq <- function(seqs) {
+  all_seq <- unlist(seqs)
+  table(all_seq) / length(all_seq)
+}
+
+
+# Calculate nucleotide frequencies
+ecoli_nt_freq <- calc_nucleotide_freq(ecoli_seqs)
+deinococcus_nt_freq <- calc_nucleotide_freq(deinococcus_seqs)
+
+
+# Prepare data for nucleotide plot
+nt_freq_data <- data.frame(
+  Base = rep(c("A", "C", "G", "T"), 2),
+  Frequency = c(ecoli_nt_freq[c("a", "c", "g", "t")],
+                deinococcus_nt_freq[c("a", "c", "g", "t")]),
+  Organism = rep(c("E. coli", "D. radiodurans"), each = 4)
+)
+
+
+# Plot nucleotide frequency
+ggplot(nt_freq_data, aes(x = Base, y = Frequency, fill = Organism)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Nucleotide Frequency in Coding Sequences",
+       x = "Nucleotide",
+       y = "Frequency") +
+  theme_minimal() +
+  scale_fill_manual(values = c("lightblue", "lightcoral"))
+
+
+# Translate sequences to proteins
+ecoli_proteins <- lapply(ecoli_seqs, function(x) seqinr::translate(x))
+deinococcus_proteins <- lapply(deinococcus_seqs, function(x) seqinr::translate(x))
+
+
+# Calculate amino acid frequencies
+calc_aa_freq <- function(proteins) {
+  all_aa <- unlist(proteins)
+  table(all_aa) / length(all_aa)
+}
+
+
+ecoli_aa_freq <- calc_aa_freq(ecoli_proteins)
+deinococcus_aa_freq <- calc_aa_freq(deinococcus_proteins)
+
+
+# Prepare data for amino acid plot
+aa_names <- names(ecoli_aa_freq)
+aa_freq_data <- data.frame(
+  AA = rep(aa_names, 2),
+  Frequency = c(ecoli_aa_freq[aa_names],
+                deinococcus_aa_freq[aa_names]),
+  Organism = rep(c("E. coli", "D. radiodurans"), each = length(aa_names))
+)
+
+
+# Plot amino acid frequency
+ggplot(aa_freq_data, aes(x = AA, y = Frequency, fill = Organism)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Amino Acid Frequency",
+       x = "Amino Acid",
+       y = "Frequency") +
+  theme_minimal() +
+  scale_fill_manual(values = c("lightblue", "lightcoral")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Objective: Analyze base composition (A, T, G, C) in coding sequences and amino acid composition in translated proteins for both organisms.
+Outcome:
+Nucleotide frequency: D. radiodurans has higher GC content (~67%) compared to E. coli (~51%), indicating adaptation to high radiation environments where GC pairs provide more stability.
+Amino acid frequency: Both show similar patterns with leucine (L), alanine (A), and valine (V) being most common, though D. radiodurans shows subtle differences reflecting its extremophile lifestyle.
+```{r}
+# Function to calculate codon usage
+calc_codon_usage <- function(seqs) {
+  codon_list <- lapply(seqs, function(x) {
+    seq_str <- paste(x, collapse = "")
+    sapply(seq(1, nchar(seq_str) - 2, 3), function(i) substr(seq_str, i, i + 2))
+  })
+  all_codons <- unlist(codon_list)
+  table(all_codons)
+}
+
+
+# Calculate codon usage
+ecoli_codon_usage <- calc_codon_usage(ecoli_seqs)
+deinococcus_codon_usage <- calc_codon_usage(deinococcus_seqs)
+
+
+# Convert to frequency
+ecoli_codon_freq <- ecoli_codon_usage / sum(ecoli_codon_usage)
+deinococcus_codon_freq <- deinococcus_codon_usage / sum(deinococcus_codon_usage)
+
+
+# Create codon usage table
+all_codons <- union(names(ecoli_codon_freq), names(deinococcus_codon_freq))
+codon_usage_table <- data.frame(
+  Codon = all_codons,
+  E_coli = as.numeric(ecoli_codon_freq[all_codons]),
+  D_radiodurans = as.numeric(deinococcus_codon_freq[all_codons])
+)
+
+
+# Replace NA with 0
+codon_usage_table[is.na(codon_usage_table)] <- 0
+
+
+print("Codon Usage Table (first 20 codons)")
+print(head(codon_usage_table, 20))
+
+
+# Simple plot: Top 20 most frequent codons
+top20_codons <- head(codon_usage_table[order(codon_usage_table$E_coli + codon_usage_table$D_radiodurans, decreasing = TRUE), ], 20)
+top20_plot_data <- data.frame(
+  Codon = rep(top20_codons$Codon, 2),
+  Frequency = c(top20_codons$E_coli, top20_codons$D_radiodurans),
+  Organism = rep(c("E. coli", "D. radiodurans"), each = nrow(top20_codons))
+)
+
+
+ggplot(top20_plot_data, aes(x = Codon, y = Frequency, fill = Organism)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Top 20 Codon Usage Comparison",
+       x = "Codon",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("lightblue", "lightcoral"))
+
+```
+
+Objective: Create codon usage table and analyze codon bias by examining which synonymous codons are preferentially used.
+Outcome: The top 20 codon comparison chart reveals:
+E. coli prefers AT-rich codons (e.g., AAA for lysine)
+D. radiodurans prefers GC-rich codons (e.g., GAG, CTG, GCC), consistent with its high GC content
+This codon bias reflects differences in tRNA availability and translation efficiency optimization in each organism.
+
+```{r}
+# Function to extract k-mers from protein sequences
+extract_kmers <- function(proteins, k) {
+  kmer_list <- lapply(proteins, function(prot) {
+    if (length(prot) >= k) {
+      sapply(1:(length(prot) - k + 1), function(i) {
+        paste(prot[i:(i + k - 1)], collapse = "")
+      })
+    } else {
+      character(0)
+    }
+  })
+  unlist(kmer_list)
+}
+
+
+# Choose k-mer size (e.g., k=4)
+k <- 4
+
+
+# Extract k-mers
+ecoli_kmers <- extract_kmers(ecoli_proteins, k)
+deinococcus_kmers <- extract_kmers(deinococcus_proteins, k)
+
+
+# Calculate frequencies
+ecoli_kmer_freq <- table(ecoli_kmers) / length(ecoli_kmers)
+deinococcus_kmer_freq <- table(deinococcus_kmers) / length(deinococcus_kmers)
+
+
+# Find top 10 over-represented and under-represented k-mers in Deinococcus
+deinococcus_kmer_sorted <- sort(deinococcus_kmer_freq, decreasing = TRUE)
+top10_over <- head(deinococcus_kmer_sorted, 10)
+top10_under <- tail(deinococcus_kmer_sorted, 10)
+
+
+print("Question 6: Top 10 Over-represented K-mers in D. radiodurans")
+print(top10_over)
+
+
+print("Top 10 Under-represented K-mers in D. radiodurans")
+print(top10_under)
+
+
+# Compare with E. coli
+comparison_over <- data.frame(
+  Kmer = names(top10_over),
+  D_radiodurans = as.numeric(top10_over),
+  E_coli = as.numeric(ecoli_kmer_freq[names(top10_over)])
+)
+comparison_over[is.na(comparison_over)] <- 0
+
+
+comparison_under <- data.frame(
+  Kmer = names(top10_under),
+  D_radiodurans = as.numeric(top10_under),
+  E_coli = as.numeric(ecoli_kmer_freq[names(top10_under)])
+)
+comparison_under[is.na(comparison_under)] <- 0
+
+
+print("Comparison of Over-represented K-mers")
+print(comparison_over)
+
+
+print("Comparison of Under-represented K-mers")
+print(comparison_under)
+
+
+# Simple plot for over-represented k-mers
+over_plot_data <- data.frame(
+  Kmer = rep(comparison_over$Kmer, 2),
+  Frequency = c(comparison_over$D_radiodurans, comparison_over$E_coli),
+  Organism = rep(c("D. radiodurans", "E. coli"), each = nrow(comparison_over))
+)
+
+
+ggplot(over_plot_data, aes(x = Kmer, y = Frequency, fill = Organism)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Top 10 Over-represented K-mers",
+       x = "K-mer",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("lightcoral", "lightblue"))
+
+
+# Simple plot for under-represented k-mers
+under_plot_data <- data.frame(
+  Kmer = rep(comparison_under$Kmer, 2),
+  Frequency = c(comparison_under$D_radiodurans, comparison_under$E_coli),
+  Organism = rep(c("D. radiodurans", "E. coli"), each = nrow(comparison_under))
+)
+
+
+ggplot(under_plot_data, aes(x = Kmer, y = Frequency, fill = Organism)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Top 10 Under-represented K-mers",
+       x = "K-mer",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("lightcoral", "lightblue"))
+```
+Objective: Identify 10 most over-represented and under-represented 4-amino acid motifs (tetrapeptides) in D. radiodurans and compare with E. coli.
+Outcome:
+Over-represented k-mers: LAAL, AALA, AALL - These are hydrophobic, alanine-leucine rich motifs. D. radiodurans shows 2-3× higher frequency than E. coli. These sequences likely contribute to protein stability under radiation stress through increased hydrophobic interactions.
+Under-represented k-mers: YYVY, YYWD, YYWW - Tyrosine-rich motifs with aromatic residues. Both organisms show very low frequencies (~10⁻⁶), suggesting these sequences are generally disfavored, possibly due to oxidation susceptibility or structural constraints.
+Biological significance: The enrichment of hydrophobic, stable motifs in D. radiodurans reflects adaptation to extreme environments where protein stability is crucial for survival.
+ 
+ 
+
+ 
